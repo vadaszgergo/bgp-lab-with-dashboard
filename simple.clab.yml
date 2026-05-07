@@ -1,0 +1,57 @@
+name: simple-lab
+
+mgmt:
+  network: clab
+  ipv4-subnet: 172.22.20.0/24
+  ipv6-subnet: 3fff:172:22:20::/64
+
+topology:
+  defaults:
+    kind: linux
+    image: quay.io/frrouting/frr:10.5.3
+
+  nodes:
+    companya:
+      binds:
+        - configs/companya/frr.conf:/etc/frr/frr.conf
+        - configs/companya/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+    isp1:
+      binds:
+        - configs/isp1/frr.conf:/etc/frr/frr.conf
+        - configs/isp1/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+    isp2:
+      binds:
+        - configs/isp2/frr.conf:/etc/frr/frr.conf
+        - configs/isp2/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+    companyb:
+      binds:
+        - configs/companyb/frr.conf:/etc/frr/frr.conf
+        - configs/companyb/daemons:/etc/frr/daemons
+        - configs/vtysh.conf:/etc/frr/vtysh.conf
+    dashboard:
+      kind: linux
+      image: bgp-dashboard:latest
+      ports:
+        - 8088:8080
+      env:
+        LAB_TOPOLOGY: /lab/topology.yml
+        LAB_PREFIX: clab-simple-lab
+      binds:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - simple.clab.yml:/lab/topology.yml:ro
+        - configs:/lab/configs:ro
+
+  links:
+    # CompanyA <-> ISPs
+    - endpoints: ["companya:eth1", "isp1:eth1"]
+    - endpoints: ["companya:eth2", "isp2:eth1"]
+
+    # ISP1 <-> ISP2
+    - endpoints: ["isp1:eth2", "isp2:eth2"]
+
+    # CompanyB <-> ISPs
+    - endpoints: ["companyb:eth1", "isp1:eth3"]
+    - endpoints: ["companyb:eth2", "isp2:eth3"]
