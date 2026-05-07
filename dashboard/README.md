@@ -8,6 +8,9 @@ A live web dashboard for the simple-lab. Polls every FRR router every 2 seconds 
 - **Sidebar** — click any node to see its BGP summary, neighbors, and full BGP table including communities.
 - **Event log** — streaming list of session up/down and best-path changes.
 
+![alt text](bgp-lab-dashboard.png)
+
+
 ## How it deploys with the lab
 
 The dashboard is wired into `simple.clab.yml` as a regular clab node:
