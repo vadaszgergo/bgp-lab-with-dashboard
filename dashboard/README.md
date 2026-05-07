@@ -10,7 +10,7 @@ A live web dashboard for the simple-lab. Polls every FRR router every 2 seconds 
 
 ## How it deploys with the lab
 
-The dashboard is wired into `simple/simple.clab.yml` as a regular clab node:
+The dashboard is wired into `simple.clab.yml` as a regular clab node:
 
 ```yaml
 nodes:
@@ -38,11 +38,11 @@ The only thing clab does **not** do is build the dashboard image — clab assume
 
 ```bash
 # 1. Build the image. Only needed once, or whenever you change dashboard code.
-cd bgp/dashboard
+cd dashboard/
 sudo docker build -t bgp-dashboard:latest .
 
 # 2. Deploy lab + dashboard together.
-cd bgp/simple
+cd ..
 sudo clab deploy -t simple.clab.yml
 
 # 3. Open the UI
@@ -62,12 +62,12 @@ sudo docker run -d --name clab-simple-lab-dashboard \
   -p 8088:8080 \
   -e LAB_PREFIX=clab-simple-lab \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /home/pc/bgp/simple/simple.clab.yml:/lab/topology.yml:ro \
-  -v /home/pc/bgp/simple/configs:/lab/configs:ro \
+  -v simple.clab.yml:/lab/topology.yml:ro \
+  -v /configs:/lab/configs:ro \
   bgp-dashboard:latest
 ```
 
-(Adjust the host paths to wherever your `bgp/simple` lives.) The next `clab destroy + deploy` will then pick up the dashboard normally again.
+(Adjust the host paths to wherever your config lives.) The next `clab destroy + deploy` will then pick up the dashboard normally again.
 
 ## Running against a different lab
 

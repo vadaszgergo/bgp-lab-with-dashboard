@@ -47,9 +47,6 @@ The two ISPs (AS65100, AS65200) don't originate any prefixes — they only trans
 ```bash
 cd simple/
 
-# If the older 6-node bgp-lab is running, destroy it first to free the mgmt subnet:
-sudo clab destroy -t ../bgp-lab.clab.yml
-
 sudo clab deploy -t simple.clab.yml
 sudo clab inspect -t simple.clab.yml
 sudo clab destroy -t simple.clab.yml
