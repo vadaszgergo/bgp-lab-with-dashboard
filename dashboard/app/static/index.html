@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>BGP Lab Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>BGP Lab Dashboard</h1>
+    <span id="status" class="status status-disconnected">disconnected</span>
+  </header>
+  <main>
+    <section id="graph"></section>
+    <aside id="sidebar">
+      <h2 id="sidebar-title">Click a router</h2>
+      <div id="sidebar-content">
+        <p class="hint">Click any node in the topology to see its BGP summary and table.</p>
+      </div>
+    </aside>
+  </main>
+  <footer>
+    <h3>Events</h3>
+    <ul id="events"></ul>
+  </footer>
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

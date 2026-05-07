@@ -1,0 +1,302 @@
+// BGP Lab Dashboard frontend.
+// Connects to /ws, builds a Cytoscape topology graph from BGP session data,
+// updates colors on state changes, and renders details in the sidebar on click.
+
+const statusEl = document.getElementById("status");
+const sidebarTitle = document.getElementById("sidebar-title");
+const sidebarContent = document.getElementById("sidebar-content");
+const eventsEl = document.getElementById("events");
+
+let cy = null;
+let selectedNode = null;
+let lastState = {};
+let nodes = [];
+
+const STATE_COLORS = {
+  Established: "#1a7f37",
+  Active: "#9a6700",
+  Connect: "#9a6700",
+  OpenSent: "#9a6700",
+  OpenConfirm: "#9a6700",
+  Idle: "#cf222e",
+  unknown: "#8b8b8b",
+};
+
+const ROLE_COLORS = {
+  edge: { bg: "#d6f0d3", border: "#2c9d3c" },   // companies (heuristic)
+  isp:  { bg: "#cfe6fd", border: "#2c79d9" },
+};
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "status " + cls;
+}
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws`);
+  setStatus("connecting…", "status-connecting");
+
+  ws.onopen = () => setStatus("connected", "status-connected");
+  ws.onclose = () => {
+    setStatus("disconnected", "status-disconnected");
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = (msg) => {
+    const data = JSON.parse(msg.data);
+    if (data.type === "snapshot") {
+      nodes = data.nodes || [];
+      lastState = data.data || {};
+      buildGraph();
+    } else if (data.type === "state") {
+      lastState = data.data || {};
+      updateGraph();
+      if (selectedNode) renderDetail(selectedNode);
+    } else if (data.type === "event") {
+      addEvent(data.data);
+    }
+  };
+}
+
+function nodeRole(name) {
+  // crude heuristic: anything starting with "isp" is transit
+  return /isp/i.test(name) ? "isp" : "edge";
+}
+
+function buildElements() {
+  const els = [];
+  // nodes
+  for (const n of nodes) {
+    const role = nodeRole(n.name);
+    els.push({
+      data: {
+        id: n.name,
+        label: `${n.name}\nAS${n.asn ?? "?"}`,
+        role,
+      },
+    });
+  }
+
+  // Build AS -> node lookup
+  const asToNode = new Map();
+  for (const n of nodes) if (n.asn) asToNode.set(n.asn, n.name);
+
+  // For each BGP session we walk both sides so we can label each end of the
+  // edge with the IP that belongs to that side. When node N reports peer IP X,
+  // X lives on the OTHER router (the remote side of the session).
+  const edges = new Map();   // sorted-pair key -> { source, target, sourceIP, targetIP, state }
+
+  for (const n of nodes) {
+    const peers = ((lastState[n.name] || {}).summary || {}).ipv4Unicast?.peers || {};
+    for (const [peerIp, info] of Object.entries(peers)) {
+      const remote = asToNode.get(info.remoteAs);
+      if (!remote) continue;
+      const [a, b] = [n.name, remote].sort();
+      const key = `${a}--${b}`;
+      let edge = edges.get(key);
+      if (!edge) {
+        edge = { id: key, source: a, target: b };
+        edges.set(key, edge);
+      }
+      // peerIp belongs to the OTHER side of the session as seen from n.name
+      if (remote === edge.source)  edge.sourceIP = peerIp;
+      else                         edge.targetIP = peerIp;
+      // Take the freshest non-empty state we encounter
+      if (info.state) edge.state = info.state;
+    }
+  }
+
+  for (const e of edges.values()) {
+    els.push({
+      data: {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        state: e.state || "unknown",
+        sourceLabel: e.sourceIP || "",
+        targetLabel: e.targetIP || "",
+      },
+    });
+  }
+
+  return els;
+}
+
+function buildGraph() {
+  if (cy) {
+    // Already built; just patch in any updates.
+    return updateGraph();
+  }
+  cy = cytoscape({
+    container: document.getElementById("graph"),
+    elements: buildElements(),
+    style: [
+      {
+        selector: "node",
+        style: {
+          "label": "data(label)",
+          "text-wrap": "wrap",
+          "text-valign": "center",
+          "text-halign": "center",
+          "font-size": "11px",
+          "font-weight": 600,
+          "background-color": "#ffffff",
+          "border-width": 2,
+          "border-color": "#666",
+          "width": 80,
+          "height": 60,
+          "shape": "round-rectangle",
+        },
+      },
+      {
+        selector: "node[role = 'edge']",
+        style: {
+          "background-color": ROLE_COLORS.edge.bg,
+          "border-color": ROLE_COLORS.edge.border,
+        },
+      },
+      {
+        selector: "node[role = 'isp']",
+        style: {
+          "background-color": ROLE_COLORS.isp.bg,
+          "border-color": ROLE_COLORS.isp.border,
+        },
+      },
+      {
+        selector: "node:selected",
+        style: { "border-width": 4, "border-color": "#0969da" },
+      },
+      {
+        selector: "edge",
+        style: {
+          "width": 3,
+          "line-color": (e) => STATE_COLORS[e.data("state")] || STATE_COLORS.unknown,
+          "curve-style": "bezier",
+          "source-label": "data(sourceLabel)",
+          "target-label": "data(targetLabel)",
+          "source-text-offset": 50,
+          "target-text-offset": 50,
+          "font-size": "9px",
+          "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace",
+          "color": "#1f2328",
+          "text-background-color": "#ffffff",
+          "text-background-opacity": 0.95,
+          "text-background-padding": 3,
+          "text-background-shape": "round-rectangle",
+          "text-border-color": "#d0d7de",
+          "text-border-width": 1,
+          "text-border-opacity": 1,
+          "z-index": 10,
+        },
+      },
+    ],
+    layout: { name: "cose", animate: false, padding: 30 },
+  });
+
+  cy.on("tap", "node", (e) => {
+    selectedNode = e.target.id();
+    renderDetail(selectedNode);
+  });
+}
+
+function updateGraph() {
+  if (!cy) return buildGraph();
+
+  // Incremental update only — never re-run layout after initial build, so the
+  // user's manual node positions stick. We also intentionally don't remove
+  // edges on transient absence (one side's peer data missing for a poll); the
+  // edge stays and just changes color if the session goes away.
+  const elements = buildElements();
+
+  for (const el of elements) {
+    const existing = cy.getElementById(el.data.id);
+    if (existing.empty()) {
+      cy.add(el);
+    } else if (existing.isEdge()) {
+      if (existing.data("state") !== el.data.state) {
+        existing.data("state", el.data.state);
+      }
+      if (el.data.sourceLabel && existing.data("sourceLabel") !== el.data.sourceLabel) {
+        existing.data("sourceLabel", el.data.sourceLabel);
+      }
+      if (el.data.targetLabel && existing.data("targetLabel") !== el.data.targetLabel) {
+        existing.data("targetLabel", el.data.targetLabel);
+      }
+    }
+  }
+}
+
+function renderDetail(name) {
+  const data = lastState[name] || {};
+  const summary = data.summary || {};
+  const ipv4 = summary.ipv4Unicast || {};
+  const peers = ipv4.peers || {};
+  const routes = (data.bgp || {}).routes || {};
+
+  sidebarTitle.textContent = `${name}  AS${ipv4.as ?? "?"}`;
+
+  const peerRows = Object.entries(peers).map(([ip, info]) => {
+    const cls = info.state === "Established" ? "" : "event-down";
+    return `<tr class="${cls}"><td>${ip}</td><td>AS${info.remoteAs ?? "?"}</td>
+            <td>${info.state ?? "?"}</td><td>${info.pfxRcd ?? "?"}</td></tr>`;
+  }).join("");
+
+  const routeRows = [];
+  for (const [prefix, paths] of Object.entries(routes)) {
+    if (!Array.isArray(paths)) continue;
+    for (const p of paths) {
+      const isBest = (p.bestpath && (p.bestpath.overall || p.bestpath === true));
+      const nh = (p.nexthops?.[0]?.ip) ?? "?";
+      const aspath = p.path ?? p.aspath?.string ?? "";
+      const lp = p.locPrf ?? p.localpref ?? "";
+      const med = p.metric ?? p.med ?? "";
+      const community = (p.community?.string) ?? "";
+      routeRows.push(`<tr class="${isBest ? 'best' : ''}">
+        <td>${prefix}</td>
+        <td>${nh}</td>
+        <td class="aspath">${aspath}</td>
+        <td>${lp}</td>
+        <td>${med}</td>
+        <td class="community">${community}</td>
+      </tr>`);
+    }
+  }
+
+  sidebarContent.innerHTML = `
+    <dl class="summary-grid">
+      <dt>Router-id</dt><dd>${ipv4.routerId ?? "?"}</dd>
+      <dt>RIB entries</dt><dd>${ipv4.ribCount ?? "?"}</dd>
+      <dt>Peers</dt><dd>${Object.keys(peers).length}</dd>
+    </dl>
+    <h3>Neighbors</h3>
+    <table>
+      <thead><tr><th>Peer</th><th>AS</th><th>State</th><th>Pfx Rcd</th></tr></thead>
+      <tbody>${peerRows || '<tr><td colspan=4>none</td></tr>'}</tbody>
+    </table>
+    <h3>BGP table</h3>
+    <table>
+      <thead><tr><th>Prefix</th><th>Next-hop</th><th>AS-path</th><th>LP</th><th>MED</th><th>Communities</th></tr></thead>
+      <tbody>${routeRows.join("") || '<tr><td colspan=6>empty</td></tr>'}</tbody>
+    </table>
+  `;
+}
+
+function addEvent(ev) {
+  const li = document.createElement("li");
+  if (ev.kind === "session") {
+    const cls = ev.state === "Established" ? "event-up" : "event-down";
+    li.className = "event-session";
+    li.innerHTML = `<span class="${cls}">[${ev.ts}]</span> ${ev.node} ↔ AS${ev.remoteAs} (${ev.peer}) → <strong>${ev.state}</strong>`;
+  } else if (ev.kind === "bestpath") {
+    li.className = "event-bestpath";
+    li.innerHTML = `[${ev.ts}] ${ev.node} best-path for ${ev.prefix}: ${ev.from || "—"} → <strong>${ev.to || "—"}</strong>`;
+  } else {
+    li.textContent = `[${ev.ts}] ${JSON.stringify(ev)}`;
+  }
+  eventsEl.prepend(li);
+  // cap at 100 lines
+  while (eventsEl.children.length > 100) eventsEl.removeChild(eventsEl.lastChild);
+}
+
+connect();
