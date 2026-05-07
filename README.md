@@ -1,25 +1,11 @@
 # Simple BGP Lab
 
 A 4-node FRR lab — two companies multi-homed to two ISPs — focused on the bread-and-butter BGP knobs: **AS-path prepend, LOCAL_PREF, MED, and failover**.
+Feel free to modify, add more routers, more connections.
 
 ## Topology
 
-```mermaid
-graph TB
-    companya["<b>companyA</b><br/>AS65001<br/>announces 10.1.1.0/24"]:::edge
-    isp1["<b>ISP1</b><br/>AS65100"]:::isp
-    isp2["<b>ISP2</b><br/>AS65200"]:::isp
-    companyb["<b>companyB</b><br/>AS65002<br/>announces 192.168.1.0/24"]:::edge
-
-    companya ---|"10.0.10.0/30"| isp1
-    companya ---|"10.0.11.0/30"| isp2
-    isp1 ---|"10.0.20.0/30"| isp2
-    companyb ---|"10.0.30.0/30"| isp1
-    companyb ---|"10.0.31.0/30"| isp2
-
-    classDef edge fill:#d6f0d3,stroke:#2c9d3c,color:#000
-    classDef isp  fill:#cfe6fd,stroke:#2c79d9,color:#000
-```
+![alt text](bgp-lap-topology.png)
 
 ### Addressing
 
