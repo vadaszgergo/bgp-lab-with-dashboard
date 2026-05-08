@@ -86,19 +86,7 @@ clab version                               # clab binary works
 
 ## Lifecycle
 
-### First-time setup — build the dashboard image
-
-The lab YAML uses a local Docker image (`bgp-dashboard:latest`) for the live dashboard. It's not on any registry, so you must build it once before the first `clab deploy`. Skipping this step gives the error `pull access denied for bgp-dashboard, repository does not exist`.
-
-```bash
-cd dashboard/
-sudo docker build -t bgp-dashboard:latest .
-cd ..
-```
-
-Takes ~30 seconds; the image is then cached locally.
-
-### Deploy / inspect / destroy
+The dashboard image is published on Docker Hub as `vadaszgergo/bgp-dashboard:0.1.0`, so the first `clab deploy` pulls it automatically. **No local build step is required.**
 
 ```bash
 sudo clab deploy -t simple.clab.yml
@@ -111,6 +99,24 @@ After deploy, open `http://<host>:8088` for the live dashboard.
 Container names: `clab-simple-lab-companya`, `clab-simple-lab-isp1`, `clab-simple-lab-isp2`, `clab-simple-lab-companyb`, `clab-simple-lab-dashboard`.
 
 > Full details on the dashboard, including how to point it at a different lab, are in [`dashboard/README.md`](dashboard/README.md).
+
+### Hacking on the dashboard (optional)
+
+If you want to modify the dashboard code (FastAPI app, frontend JS, styling), build a local image and point the lab YAML at it:
+
+```bash
+cd dashboard/
+sudo docker build -t bgp-dashboard:dev .
+cd ..
+```
+
+Then edit `simple.clab.yml` and change the image line for the `dashboard` node:
+
+```yaml
+image: bgp-dashboard:dev
+```
+
+Redeploy and your changes are picked up. Once you're happy, you can rebuild the published image (`vadaszgergo/bgp-dashboard:0.x.y`) and revert the YAML to use the registry version.
 
 ## Exercises
 

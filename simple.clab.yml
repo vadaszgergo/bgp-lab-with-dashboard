@@ -33,8 +33,8 @@ topology:
         - configs/vtysh.conf:/etc/frr/vtysh.conf
     dashboard:
       kind: linux
-      image: bgp-dashboard:latest
-      image-pull-policy: IfNotPresent   # local-only image; don't try to pull from a registry
+      image: vadaszgergo/bgp-dashboard:0.1.0
+      image-pull-policy: IfNotPresent   # use cached image after first pull
       ports:
         - 8088:8080
       env:
