@@ -28,6 +28,12 @@ The two ISPs (AS65100, AS65200) don't originate any prefixes — they only trans
 
 `10.1.1.1/32` and `192.168.1.1/32` are bound to the loopback of each company router so they actually respond to ICMP. Use them as targets for `ping` / `traceroute` end-to-end. Each router-id loopback (`10.255.0.1`, `10.255.0.2`) stays where it is.
 
+## Live dashboard
+
+![dashboard reacting to clear ip bgp on isp1](clear-ip-bgp.gif)
+
+Once the lab is up, `http://<host>:8088` serves a small web app that draws the topology, shows each router's BGP table on click, and streams session and best-path events as they happen — so you can *see* changes the moment they propagate. The GIF above is a `clear ip bgp *` issued on ISP1: edge colors flicker as sessions reset, then settle back to green as they re-establish, with the event log capturing every transition.
+
 ## Prerequisites (Linux)
 
 The lab runs on any modern Linux distro (tested on Ubuntu 22.04 / 24.04, Debian 12, x86_64). You need two things on the host: Docker and containerlab.
