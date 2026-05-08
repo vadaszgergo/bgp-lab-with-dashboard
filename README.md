@@ -28,23 +28,83 @@ The two ISPs (AS65100, AS65200) don't originate any prefixes — they only trans
 
 `10.1.1.1/32` and `192.168.1.1/32` are bound to the loopback of each company router so they actually respond to ICMP. Use them as targets for `ping` / `traceroute` end-to-end. Each router-id loopback (`10.255.0.1`, `10.255.0.2`) stays where it is.
 
-## Lifecycle
+## Prerequisites (Linux)
+
+The lab runs on any modern Linux distro (tested on Ubuntu 22.04 / 24.04, Debian 12, x86_64). You need two things on the host: Docker and containerlab.
+
+### 1. Docker
+
+If `docker` isn't already installed:
 
 ```bash
-cd simple/
+# Convenience installer maintained by Docker, Inc.
+curl -fsSL https://get.docker.com | sudo sh
 
+# Optional: let your user run docker without sudo (log out & back in for it to take effect)
+sudo usermod -aG docker "$USER"
+
+# Verify
+docker --version
+```
+
+### 2. containerlab
+
+Containerlab is shipped as a single static binary. The official one-line installer detects your distro and adds the apt/yum repo:
+
+```bash
+bash -c "$(curl -sL https://get.containerlab.dev)"
+
+# Verify
+clab version
+```
+
+Alternative (no repo, manual binary):
+
+```bash
+LATEST=$(curl -s https://api.github.com/repos/srl-labs/containerlab/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/^v//')
+curl -sL "https://github.com/srl-labs/containerlab/releases/download/v${LATEST}/containerlab_${LATEST}_linux_amd64.tar.gz" \
+  | sudo tar -xz -C /usr/local/bin clab
+clab version
+```
+
+### 3. Confirm everything
+
+```bash
+sudo docker run --rm hello-world           # Docker daemon is reachable
+clab version                               # clab binary works
+```
+
+> **Note for Apple Silicon Macs**: containerlab manipulates Linux network namespaces directly, so it doesn't run natively on macOS. Use a Linux VM (OrbStack, Lima, Multipass) and follow the steps above inside the VM.
+
+> **Resource footprint**: 4 FRR routers (~50 MB each) + the dashboard container (~150 MB) ≈ **350 MB RAM total**. Any small home server, VPS, or Linux VM with 1 GB free is plenty.
+
+## Lifecycle
+
+### First-time setup — build the dashboard image
+
+The lab YAML uses a local Docker image (`bgp-dashboard:latest`) for the live dashboard. It's not on any registry, so you must build it once before the first `clab deploy`. Skipping this step gives the error `pull access denied for bgp-dashboard, repository does not exist`.
+
+```bash
+cd dashboard/
+sudo docker build -t bgp-dashboard:latest .
+cd ..
+```
+
+Takes ~30 seconds; the image is then cached locally.
+
+### Deploy / inspect / destroy
+
+```bash
 sudo clab deploy -t simple.clab.yml
 sudo clab inspect -t simple.clab.yml
 sudo clab destroy -t simple.clab.yml
 ```
 
+After deploy, open `http://<host>:8088` for the live dashboard.
+
 Container names: `clab-simple-lab-companya`, `clab-simple-lab-isp1`, `clab-simple-lab-isp2`, `clab-simple-lab-companyb`, `clab-simple-lab-dashboard`.
 
-> **Live dashboard**: this YAML also brings up the BGP dashboard at `http://<host>:8088`. The image must be built once before the first deploy:
-> ```bash
-> cd ../dashboard && sudo docker build -t bgp-dashboard:latest .
-> ```
-> Full details and how to point the dashboard at other labs are in [`../dashboard/README.md`](../dashboard/README.md).
+> Full details on the dashboard, including how to point it at a different lab, are in [`dashboard/README.md`](dashboard/README.md).
 
 ## Exercises
 

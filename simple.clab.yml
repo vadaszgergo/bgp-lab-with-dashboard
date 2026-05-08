@@ -34,6 +34,7 @@ topology:
     dashboard:
       kind: linux
       image: bgp-dashboard:latest
+      image-pull-policy: IfNotPresent   # local-only image; don't try to pull from a registry
       ports:
         - 8088:8080
       env:
